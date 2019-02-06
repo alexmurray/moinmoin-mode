@@ -1,22 +1,21 @@
-;;; Use raw text to fetch this code, see EmacsForMoinMoin for tutorial and discussion.
-
-;;; Download link: http://moinmo.in/EmacsForMoinMoin/MoinMoinMode?action=raw
-
 ;;; moinmoin-mode.el --- a major mode to edit MoinMoin wiki pages
 
+;;; Commentary:
+
 ;; Written by ASK, distributed under GPL
+;; Modified by Alex Murray <murray.alex@gmail.com>
 
 ;; Filename:      moinmoin-mode.el
 ;; Keywords:      moinmoin, wiki
 ;; Description:   a major mode to edit MoinMoin wiki pages
-;; Compatibility: GNU Emacs 22.0.50.1 (probably others)
+;; Compatibility: GNU Emacs 24.4
 ;; Last modified: 2006-04-15
 
 ;; This file is NOT part of GNU Emacs.
 
-(require 'screen-lines) ; uses screen-lines.el by Yuji Minejima, tested with 0.55
+;;; Code:
 
-
+(require 'outline)
 
 ;;; Definition of font faces
 (defgroup moinmoin nil
@@ -144,19 +143,19 @@
 ;;; Font lock setup
 (defconst moinmoin-url-prefix
   "\\(?:http\\|https\\|ftp\\|nntp\\|news\\|mailto\\|telnet\\|wiki\\|file\\|irc\\|attachment\\|inline\\|drawing\\)"
-  "Bracketed regexp matching URL prefixes in moinmoin")
+  "Bracketed regexp matching URL prefixes in moinmoin.")
 (defconst moinmoin-url-punctuation
   "]\"'}|:,.)?!"                        ; start with ]
-  "Punctuation in URLs of moinmoin")
+  "Punctuation in URLs of moinmoin.")
 (defconst moinmoin-pi-re
   "^#\\(?:format\\|refresh\\|redirect\\|deprecated\\|pragma\\|form\\|acl\\|language\\).*$"
-  "Regexp for processing instructions in moinmoin")
+  "Regexp for processing instructions in moinmoin.")
 (defconst moinmoin-smiley-re
   "\\(?:<:(\\|X-(\\|:)\\|:-))\\|:(\\|/!\\\\\\|{X}\\|{OK}\\|B-)\\|{2}\\|>:>\\|;-)\\|<!>\\|:o\\||-)\\|;)\\||)\\|(!)\\|:-(\\|:-)\\|{o}\\|:D\\|(./)\\|B)\\|{*}\\|:\\\|:-?\\|{i}\\|{3}\\|{1}\\|:)\\)"
-  "Regexp for smileys in moinmoin")
+  "Regexp for smileys in moinmoin.")
 
 (defun moinmoin-formatted-code-matcher (bound)
-  "Search for formatted code
+  "Search for formatted code sections up to BOUND.
 This is supposed to be bug-to-bug compatible with moinmoin-1.5.2"
   (catch 'match
     (while (< (point) bound)
@@ -195,7 +194,7 @@ This is supposed to be bug-to-bug compatible with moinmoin-1.5.2"
 
 
 (defun moinmoin-bracketed-url-matcher (bound)
-  "Search for bracketed URLs"
+  "Search for bracketed URLs up to BOUND."
   (catch 'match
     (while (< (point) bound)
       (unless (search-forward-regexp
@@ -208,7 +207,7 @@ This is supposed to be bug-to-bug compatible with moinmoin-1.5.2"
         (throw 'match t)))))
 
 (defun moinmoin-setup-font-lock ()
-  (setq font-lock-beginning-of-syntax-function '(lambda () (goto-char 1)))
+  "Setup font locking for moinmoin-mode."
   (setq font-lock-multiline t)
   (make-local-variable 'font-lock-extra-managed-props)
   (add-to-list 'font-lock-extra-managed-props 'moinmoin-verbatim) ; Not Comment Start
@@ -332,13 +331,13 @@ This is supposed to be bug-to-bug compatible with moinmoin-1.5.2"
 
 ;;; Automagic typing helpers
 (defun moinmoin-insert-quote ()
-  "Convert double quote to HTML entity (&ldquo; or &rdquo;)"
+  "Convert double quote to HTML entity (&ldquo; or &rdquo;)."
   (interactive)
   (cond
    ((or (get-text-property (point) 'moinmoin-verbatim)
-        (looking-back "\\[\\|= *\\|^\\(?:[^\"]*\"[^\"]*\"\\)*[^\"]*\"[^\"]*"))
+        (looking-back "\\[\\|= *\\|^\\(?:[^\"]*\"[^\"]*\"\\)*[^\"]*\"[^\"]*" nil))
     (insert "\""))
-   ((or (looking-back "[[:space:]]") (eq (point) 1))
+   ((or (looking-back "[[:space:]]" nil) (eq (point) 1))
     (insert "&ldquo;"))
    (t (insert "&rdquo;"))))
 
@@ -353,53 +352,53 @@ This is supposed to be bug-to-bug compatible with moinmoin-1.5.2"
   (cond
    ((get-text-property (point) 'moinmoin-verbatim)
     (insert "-"))
-   ((looking-back "---\\|&mdash;")
+   ((looking-back "---\\|&mdash;" nil)
     (replace-match "----" t t))
-   ((looking-back "--\\|&ndash;")
+   ((looking-back "--\\|&ndash;" nil)
     (replace-match "&mdash;" t t))
-   ((looking-back ")-")
+   ((looking-back ")-" nil)
     (replace-match ")--" t t))
-   ((looking-back "<")
+   ((looking-back "<" nil)
     (replace-match "&larr;" t t))
-   ((looking-back "-")
+   ((looking-back "-" nil)
     (replace-match "&ndash;" t t))
    (t (insert "-"))))
 
 (defun moinmoin-insert-lparen ()
-  "&ndash;( to --("
+  "&ndash;( to --(."
   (interactive)
   (cond
    ((get-text-property (point) 'moinmoin-verbatim)
     (insert "("))
-   ((looking-back "&ndash;")
+   ((looking-back "&ndash;" nil)
     (replace-match "--(" t t))
    (t (insert "("))))
 
 (defun moinmoin-insert-greater-than ()
-  "-> to &rarr;"
+  "-> to &rarr;."
   (interactive)
   (cond
    ((get-text-property (point) 'moinmoin-verbatim)
     (insert ">"))
-   ((looking-back "-")
+   ((looking-back "-" nil)
     (replace-match "&rarr;" t t))
    (t (insert ">"))))
 
 (defun moinmoin-insert-item ()
-  "Start new item or row
+  "Start new item or row.
 If current line starts with item prefix insert newline and the same
 prefix in front of the rest of line.
 If it is table then finish the line and add the new one"
   (interactive)
   (when (bolp) (backward-char))
   (cond
-   ((looking-back "^\\( *||\\).*")      ; in a table
+   ((looking-back "^\\( *||\\).*" nil)      ; in a table
     (let ((prefix (match-string 1)))
       (end-of-line)
-      (looking-back "[^|]\\(|*\\)")
+      (looking-back "[^|]\\(|*\\)" nil)
       (replace-match "||" t t nil 1)
       (insert "\n" prefix)))
-   ((looking-back "^\\( +\\(?:\\* \\|\\(?:[0-9]+\\|[aAiI]\\)\\. \\|\\)\\).*")
+   ((looking-back "^\\( +\\(?:\\* \\|\\(?:[0-9]+\\|[aAiI]\\)\\. \\|\\)\\).*" nil)
     (let ((prefix (match-string 1)))
      (insert "\n")
       (insert prefix)))))
@@ -415,14 +414,14 @@ If yes the title is in \\1"
     (looking-at "=+ \\(.*\\) =+$")))
 
 (defun moinmoin-increase-header-level ()
-  "Add `=' in the beginning and end of current line"
+  "Add `=' in the beginning and end of current line."
   (save-excursion
     (beginning-of-line) (insert "=")
     (end-of-line) (insert "=")))
 
 (defun moinmoin-decrease-header-level ()
-  "Decrease level of the header
-Warns if point in a top-level header or not in a header"
+  "Decrease level of the header.
+Warns if point in a top level header or not in a header"
   (save-excursion
     (beginning-of-line)
     (if (looking-at "=\\(=+ .* =+\\)=$")
@@ -431,14 +430,14 @@ Warns if point in a top-level header or not in a header"
     ))
 
 (defun moinmoin-change-header-level (increment)
-  "Increase or decrease level of header according to INCREMENT"
+  "Increase or decrease level of header according to INCREMENT."
   (interactive "r")
   (if (eq increment 1)
       (moinmoin-increase-header-level)
     (moinmoin-decrease-header-level)))
 
 (defun moinmoin-change-header-levels-in-region (increment start end)
-  "Increase or decrease level of all headers in the region according to INCREMENT"
+  "Increase or decrease level of all headers in the region from START to END according to INCREMENT."
   (interactive "p\nr")
   (save-excursion
     (goto-char start)
@@ -449,7 +448,7 @@ Warns if point in a top-level header or not in a header"
   ))
 
 (defun moinmoin-insert-equal (increment)
-  "Do-what-I-mean with header level or insert `='.
+  "Do-what-I-mean with header level by INCREMENT or insert `='.
 With active region increase or decrease level of all headers in region.
 On an empty line starts new header.
 On a header line increase or decrease level.
@@ -472,7 +471,7 @@ Otherwise just insert `='"
 
 ;;; Anchor insertion and navigation
 (defun moinmoin-list-anchors ()
-  "List anchors in the current buffer"
+  "List anchors in the current buffer."
   (let ((lst))
     (save-excursion
       (goto-char 1)
@@ -482,7 +481,7 @@ Otherwise just insert `='"
 
 (defvar moinmoin-anchor-history "Minibuffer history of anchors")
 (defun moinmoin-completing-read-anchor (prompt &optional require-match)
-  "Read non-empty anchor using complition of all the anchors in the current buffer"
+  "Read non-empty anchor with PROMPT and optional REQUIRE-MATCH via all the anchors in the current buffer."
   (let ((anchor
          (completing-read "Anchor: " (moinmoin-list-anchors)
                           nil require-match
@@ -492,12 +491,13 @@ Otherwise just insert `='"
     anchor))
 
 (defun moinmoin-insert-number-sign (&optional no-title)
+  "Insert number sign and optionally have NO-TITLE."
   (interactive "P")
   "After `[' insert a reference to anchor inputed using completition,
 If no argument given also insert the title of the section which contains
 the anchor."
   (cond
-   ((and (looking-back "\\[")
+   ((and (looking-back "\\[" nil)
          (not (get-text-property (point) 'moinmoin-verbatim)))
     (let* ((anchor (moinmoin-completing-read-anchor "Anchor: "))
            (title
@@ -513,7 +513,7 @@ the anchor."
     (insert "#"))))
 
 (defun moinmoin-insert-anchor ()
-  "Insert anchor (using the title if point is in a header)"
+  "Insert anchor (using the title if point is in a header)."
   (interactive)
   (cond
    ((moinmoin-is-header)
@@ -527,7 +527,7 @@ the anchor."
     (insert "[[Anchor()]]") (backward-char 3))))
 
 (defun moinmoin-anchor-read-or-ask (&optional prompt)
-  "DWIM to get anchor: read [#... ] on current line (before point) or ask user."
+  "DWIM to get anchor: read [#... ] on current line (before point) or ask user with PROMPT."
   (cond
    ((and
      (search-backward
@@ -538,7 +538,7 @@ the anchor."
     (moinmoin-completing-read-anchor (or prompt "Anchor: ") t))))
 
 (defun moinmoin-goto-anchor (&optional anchor)
-  "Go to anchor
+  "Go to ANCHOR.
 If ANCHOR is nil (e.g., if called interactively) read reference
 to it from the current line or ask user.  So if there is an
 anchor on the current line but you want to jump to something
@@ -550,14 +550,14 @@ different go to the beginning of the line first."
   (search-forward (concat "[[Anchor(" anchor ")]]")))
 
 (defun moinmoin-get-anchored-header (anchor)
-  "Get title of the section which contains ANCHOR"
+  "Get title of the section for ANCHOR."
   (save-excursion
     (moinmoin-goto-anchor anchor)
     (search-backward-regexp "^=+ \\(.*\\) =+$" nil)
     (match-string-no-properties 1)))
 
 (defun moinmoin-insert-anchored-header (&optional to-kill-ring)
-  "Insert title of the section which contains anchor, with prefix save it to kill-ring"
+  "Insert title of the section for anchor, with prefix save it TO-KILL-RING."
   (interactive "P")
   (let ((header (moinmoin-get-anchored-header nil)))
     (if to-kill-ring
@@ -583,7 +583,7 @@ different go to the beginning of the line first."
   (local-set-key (kbd "C-c a") 'moinmoin-insert-anchor)
   (local-set-key (kbd "C-c g") 'moinmoin-goto-anchor)
   (toggle-truncate-lines 0)                    ; do not truncate
-  (screen-lines-mode 1)                        ; use screen lines
+  (visual-line-mode 1)                        ; use visual line
   (moinmoin-setup-font-lock)
   (abbrev-mode 1)
   (set-fill-column 65000)
@@ -592,3 +592,4 @@ different go to the beginning of the line first."
 (add-to-list 'auto-mode-alist '("\\.wiki$" . moinmoin-mode))
 
 (provide 'moinmoin-mode)
+;;; moinmoin-mode.el ends here
