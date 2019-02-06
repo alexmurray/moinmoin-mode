@@ -8,7 +8,7 @@
 ;; Filename:      moinmoin-mode.el
 ;; Keywords:      moinmoin, wiki
 ;; Description:   a major mode to edit MoinMoin wiki pages
-;; Compatibility: GNU Emacs 24.4
+;; Compatibility: GNU Emacs 25.1
 ;; Last modified: 2006-04-15
 
 ;; This file is NOT part of GNU Emacs.
@@ -565,14 +565,11 @@ different go to the beginning of the line first."
       (insert header))))
 
 
-
 ;;; Setup
 (define-derived-mode moinmoin-mode outline-mode "MoinMoin"
   "Set major mode for editing MoinMoin pages"
-  (make-local-variable 'outline-regexp)
-  (setq outline-regexp "=+")
-  (make-local-variable 'outline-heading-end-regexp)
-  (setq outline-heading-end-regexp " =+\n")
+  (set (make-local-variable 'outline-regexp) "=+")
+  (set (make-local-variable 'outline-heading-end-regexp) " =+\n")
   (local-set-key "\"" 'moinmoin-insert-quote)
   (local-set-key "-" 'moinmoin-insert-dash)
   (local-set-key "(" 'moinmoin-insert-lparen)
@@ -587,7 +584,14 @@ different go to the beginning of the line first."
   (moinmoin-setup-font-lock)
   (abbrev-mode 1)
   (set-fill-column 65000)
-  (auto-fill-mode 0))
+  (auto-fill-mode 0)
+  (setq imenu-generic-expression
+        '(("******" "^====== \\(.*?\\) ======$" 1)
+          ("*****" "^===== \\(.*?\\) =====$" 1)
+          ("****" "^==== \\(.*?\\) ====$" 1)
+          ("***" "^=== \\(.*?\\) ===$" 1)
+          ("**" "^== \\(.*?\\) ==$" 1)
+          ("*" "^= \\(.*?\\) =$" 1))))
 
 (add-to-list 'auto-mode-alist '("\\.wiki$" . moinmoin-mode))
 
